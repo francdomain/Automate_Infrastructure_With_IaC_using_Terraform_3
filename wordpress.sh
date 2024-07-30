@@ -70,12 +70,7 @@ sed -i "s/username_here/francis/g" wp-config.php
 sed -i "s/password_here/devopspbl/g" wp-config.php
 sed -i "s/database_name_here/wordpressdb/g" wp-config.php
 
-# chcon -t httpd_sys_rw_content_t /var/www/html/ -R
-
-# # Set SELinux context
-# if selinuxenabled; then
-#     sudo chcon -t httpd_sys_rw_content_t /var/www/html/ -R || true
-# fi
+chcon -t httpd_sys_rw_content_t /var/www/html/ -R
 
 # Restart Apache
 systemctl restart httpd
