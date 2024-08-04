@@ -1,13 +1,3 @@
-terraform {
-  backend "s3" {
-    bucket         = "francis-dev-terraform-bucket"
-    key            = "global/s3/terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "terraform-locks"
-    encrypt        = true
-  }
-}
-
 # Note: The bucket name must be a unique name.
 
 resource "aws_s3_bucket" "terraform_state" {
