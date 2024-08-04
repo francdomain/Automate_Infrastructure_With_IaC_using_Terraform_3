@@ -63,3 +63,14 @@ variable "master-password" {
   type        = string
   description = "RDS master password"
 }
+
+variable "security_groups_detail" {
+  description = "Name and Description of the Security Groups"
+  type        = map(map(string))
+  default = {
+    name = {
+      ext-alb = "",
+      bastion     = ""
+    }
+  }
+}

@@ -1,229 +1,227 @@
-# security group for external alb, to allow acess from any where for HTTP and HTTPS traffic
+# Security group for external alb, to allow acess from any where for HTTP and HTTPS traffic
 resource "aws_security_group" "ext-alb-sg" {
-  name        = "ext-alb-sg"
+  name        = var.security_groups_detail.name.ext-alb
   vpc_id      = aws_vpc.main.id
-  description = "Allow TLS inbound traffic"
+  description = var.security_groups_detail.description.ext-alb
 
-  ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+  # Use dynamic block to create ingress rules from the list
+  dynamic "ingress" {
+    for_each = local.ext_alb_ingress_rules
+    content {
+      description = ingress.value.description
+      from_port   = ingress.value.from_port
+      to_port     = ingress.value.to_port
+      protocol    = ingress.value.protocol
+      cidr_blocks = ingress.value.cidr_blocks
+    }
   }
-
-  ingress {
-    description = "HTTPS"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  dynamic "egress" {
+    for_each = local.egress_rule
+    content {
+      from_port   = egress.value.from_port
+      to_port     = egress.value.to_port
+      protocol    = egress.value.protocol
+      cidr_blocks = egress.value.cidr_blocks
+    }
   }
 
   tags = merge(
     var.tags,
     {
-      Name = "ext-alb-sg"
+      Name = var.security_groups_detail.name.ext-alb
     },
   )
 
 }
 
-# security group for bastion, to allow access into the bastion host from your IP
+# Security group for bastion, to allow access into the bastion host from your IP
 resource "aws_security_group" "bastion_sg" {
-  name        = "bastion_sg"
+  name        = var.security_groups_detail.name.bastion
   vpc_id      = aws_vpc.main.id
-  description = "Allow incoming SSH connections."
+  description = var.security_groups_detail.description.bastion
 
-  ingress {
-    description = "SSH"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+  dynamic "ingress" {
+    for_each = local.bastion_ingress_rules
+    content {
+      description = ingress.value.description
+      from_port   = ingress.value.from_port
+      to_port     = ingress.value.to_port
+      protocol    = ingress.value.protocol
+      cidr_blocks = ingress.value.cidr_blocks
+    }
   }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  dynamic "egress" {
+    for_each = local.egress_rule
+    content {
+      from_port   = egress.value.from_port
+      to_port     = egress.value.to_port
+      protocol    = egress.value.protocol
+      cidr_blocks = egress.value.cidr_blocks
+    }
   }
 
   tags = merge(
     var.tags,
     {
-      Name = "Bastion-SG"
+      Name = var.security_groups_detail.name.bastion
     },
   )
 }
 
-#security group for nginx reverse proxy, to allow access only from the external load balancer and bastion instance
+#Security group for nginx reverse proxy, to allow access only from the external load balancer and bastion instance
 resource "aws_security_group" "nginx-sg" {
-  name   = "nginx-sg"
-  vpc_id = aws_vpc.main.id
+  name        = var.security_groups_detail.name.nginx
+  vpc_id      = aws_vpc.main.id
+  description = var.security_groups_detail.description.nginx
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  dynamic "ingress" {
+    for_each = local.nginx_ingress_rules
+    content {
+      description     = ingress.value.description
+      from_port       = ingress.value.from_port
+      to_port         = ingress.value.to_port
+      protocol        = ingress.value.protocol
+      security_groups = ingress.value.security_groups
+    }
+  }
+
+  dynamic "egress" {
+    for_each = local.egress_rule
+    content {
+      from_port   = egress.value.from_port
+      to_port     = egress.value.to_port
+      protocol    = egress.value.protocol
+      cidr_blocks = egress.value.cidr_blocks
+    }
   }
 
   tags = merge(
     var.tags,
     {
-      Name = "nginx-SG"
+      Name = var.security_groups_detail.name.nginx
     },
   )
+
+  depends_on = [
+    aws_security_group.ext-alb-sg,
+    aws_security_group.bastion_sg
+  ]
 }
 
-resource "aws_security_group_rule" "inbound-nginx-http" {
-  type                     = "ingress"
-  from_port                = 443
-  to_port                  = 443
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.ext-alb-sg.id
-  security_group_id        = aws_security_group.nginx-sg.id
-}
-
-resource "aws_security_group_rule" "inbound-bastion-ssh" {
-  type                     = "ingress"
-  from_port                = 22
-  to_port                  = 22
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.bastion_sg.id
-  security_group_id        = aws_security_group.nginx-sg.id
-}
-
-# security group for internal alb, to have access only from nginx reverser proxy server
+# Security group for internal alb, to have access only from nginx reverser proxy server
 resource "aws_security_group" "int-alb-sg" {
-  name   = "int-alb-sg"
-  vpc_id = aws_vpc.main.id
+  name        = var.security_groups_detail.name.int-alb
+  vpc_id      = aws_vpc.main.id
+  description = var.security_groups_detail.description.int-alb
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  dynamic "ingress" {
+    for_each = local.int_alb_ingress_rules
+    content {
+      description     = ingress.value.description
+      from_port       = ingress.value.from_port
+      to_port         = ingress.value.to_port
+      protocol        = ingress.value.protocol
+      security_groups = ingress.value.security_groups
+    }
+  }
+  dynamic "egress" {
+    for_each = local.egress_rule
+    content {
+      from_port   = egress.value.from_port
+      to_port     = egress.value.to_port
+      protocol    = egress.value.protocol
+      cidr_blocks = egress.value.cidr_blocks
+    }
   }
 
   tags = merge(
     var.tags,
     {
-      Name = "int-alb-sg"
+      Name = var.security_groups_detail.name.int-alb
     },
   )
 
+  depends_on = [
+    aws_security_group.nginx-sg
+  ]
 }
 
-resource "aws_security_group_rule" "inbound-ialb-https" {
-  type                     = "ingress"
-  from_port                = 443
-  to_port                  = 443
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.nginx-sg.id
-  security_group_id        = aws_security_group.int-alb-sg.id
-}
-
-# security group for webservers, to have access only from the internal load balancer and bastion instance
+# Security group for webservers, to have access only from the internal load balancer and bastion instance
 resource "aws_security_group" "webserver-sg" {
-  name   = "webserver-sg"
-  vpc_id = aws_vpc.main.id
+  name        = var.security_groups_detail.name.webservers
+  vpc_id      = aws_vpc.main.id
+  description = var.security_groups_detail.description.webservers
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  dynamic "ingress" {
+    for_each = local.webservers_ingress_rules
+    content {
+      description     = ingress.value.description
+      from_port       = ingress.value.from_port
+      to_port         = ingress.value.to_port
+      protocol        = ingress.value.protocol
+      security_groups = ingress.value.security_groups
+    }
+  }
+  dynamic "egress" {
+    for_each = local.egress_rule
+    content {
+      from_port   = egress.value.from_port
+      to_port     = egress.value.to_port
+      protocol    = egress.value.protocol
+      cidr_blocks = egress.value.cidr_blocks
+    }
   }
 
   tags = merge(
     var.tags,
     {
-      Name = "webserver-sg"
+      Name = var.security_groups_detail.name.webservers
     },
   )
 
+  depends_on = [
+    aws_security_group.int-alb-sg,
+    aws_security_group.bastion_sg
+  ]
 }
 
-resource "aws_security_group_rule" "inbound-web-https" {
-  type                     = "ingress"
-  from_port                = 443
-  to_port                  = 443
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.int-alb-sg.id
-  security_group_id        = aws_security_group.webserver-sg.id
-}
-
-resource "aws_security_group_rule" "inbound-web-ssh" {
-  type                     = "ingress"
-  from_port                = 22
-  to_port                  = 22
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.bastion_sg.id
-  security_group_id        = aws_security_group.webserver-sg.id
-}
-
-# security group for datalayer to alow traffic from websever on nfs and mysql port and bastion host on mysql port
+# Security group for datalayer to alow traffic from websever on nfs and mysql port and bastion host on mysql port
 resource "aws_security_group" "datalayer-sg" {
-  name   = "datalayer-sg"
-  vpc_id = aws_vpc.main.id
+  name        = var.security_groups_detail.name.datalayer
+  vpc_id      = aws_vpc.main.id
+  description = var.security_groups_detail.description.datalayer
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  dynamic "ingress" {
+    for_each = local.datalayer_ingress_rules
+    content {
+      description     = ingress.value.description
+      from_port       = ingress.value.from_port
+      to_port         = ingress.value.to_port
+      protocol        = ingress.value.protocol
+      security_groups = ingress.value.security_groups
+    }
+  }
+
+  dynamic "egress" {
+    for_each = local.egress_rule
+    content {
+      from_port   = egress.value.from_port
+      to_port     = egress.value.to_port
+      protocol    = egress.value.protocol
+      cidr_blocks = egress.value.cidr_blocks
+    }
   }
 
   tags = merge(
     var.tags,
     {
-      Name = "datalayer-sg"
+      Name = var.security_groups_detail.name.datalayer
     },
   )
-}
 
-resource "aws_security_group_rule" "inbound-nfs-port" {
-  type                     = "ingress"
-  from_port                = 2049
-  to_port                  = 2049
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.webserver-sg.id
-  security_group_id        = aws_security_group.datalayer-sg.id
-}
-
-resource "aws_security_group_rule" "inbound-nfs-nginx" {
-  type                     = "ingress"
-  from_port                = 2049
-  to_port                  = 2049
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.nginx-sg.id
-  security_group_id        = aws_security_group.datalayer-sg.id
-}
-
-resource "aws_security_group_rule" "inbound-mysql-bastion" {
-  type                     = "ingress"
-  from_port                = 3306
-  to_port                  = 3306
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.bastion_sg.id
-  security_group_id        = aws_security_group.datalayer-sg.id
-}
-
-resource "aws_security_group_rule" "inbound-mysql-webserver" {
-  type                     = "ingress"
-  from_port                = 3306
-  to_port                  = 3306
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.webserver-sg.id
-  security_group_id        = aws_security_group.datalayer-sg.id
+  depends_on = [
+    aws_security_group.webserver-sg,
+    aws_security_group.nginx-sg,
+    aws_security_group.bastion_sg
+  ]
 }

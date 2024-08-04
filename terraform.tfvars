@@ -31,3 +31,22 @@ account_no = "123456789"
 master-username = "francis"
 
 master-password = "devopspbl"
+
+security_groups_detail = {
+  name = {
+    ext-alb    = "ext-alb-sg",
+    bastion    = "bastion_sg",
+    nginx      = "nginx-sg",
+    int-alb    = "int-alb-sg",
+    webservers = "webserver-sg",
+    datalayer  = "datalayer-sg"
+  }
+  description = {
+    ext-alb    = "Allow TLS inbound traffic",
+    bastion    = "Allow incoming SSH connections.",
+    nginx      = "Allow HTTPS inbound traffic from ex-ALB and SSH traffic from bastion",
+    int-alb    = "Allow TLS inbound traffic from nginx reverse proxy server",
+    webservers = "Allow TLS inbound traffic from int-ALB and SSH traffic from bastion",
+    datalayer  = "Allow mysql inbound traffic from webservers and nfs from webservers and nginx",
+  }
+}
